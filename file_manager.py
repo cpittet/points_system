@@ -50,7 +50,7 @@ def get_mandatory_list(path, nbr_activ):
     Read the list of mandatory activities in the excel file
     :param path: the path where the excel file is located
     :param nbr_activ: the number of activities
-    :return: a list containing boolean where at index i contains whether the ith activity is mandatory or not
+    :return: a list containing booleans where at index i contains whether the ith activity is mandatory or not
     """
     # Open workbook
     wb = xlrd.open_workbook(path)
@@ -98,6 +98,7 @@ def close_db(conn, cursor):
 
 def check_existence_tables(db_path):
     """
+    USELESS...
     Checks whether the db already contains the tables
     :param db_path: location of the db if it already has been created
     :return: False if the db does not exists or does not contains the tables, True otherwise
@@ -139,23 +140,24 @@ def check_existence_record(year, c):
     false otherwise
     """
     # Query the entry
-    c.execute('''SELECT year FROM separate WHERE year=?''', year)
+    c.execute('''SELECT year FROM separate WHERE year=?''', (year,))
     exists = c.fetchall()
 
     return exists
 
 
-def update_record(new_record, year, c, conn):
+def update_record(new_record, year, mdt, c, conn):
     """
     Update the record of the current year in the database containing the records for each year
     and the record in the table containing all years
     :param new_record: the new record for this year
     :param year: the current year
+    :param mdt: the mandatory data for this year
     :param c: the cursor of the corresponding open connection to the db
     :param conn: the connection to the corresponding db
     :return:
     """
-    # Query
+    # Query to update the separate table
     sql = ''' UPDATE separate
               SET data = ?
               WHERE year = ?'''
@@ -163,14 +165,42 @@ def update_record(new_record, year, c, conn):
     c.execute(sql, (new_record, year))
     conn.commit()
 
+    #Query to update the mandatory table
+    c.execute('''UPDATE mandatory
+                 SET mdt = ?
+                 WHERE year = ?''', (mdt, year))
+    conn.commit()
 
-def write_record(record, year, db_path):
+    #Query to update in the cumulative table
+    c.execute('''SELECT * FROM cumulative WHERE year=?''', (year,))
+    current = c.fetchone()[1]
+
+    print(current)
+    current = current[:-1]
+    print(current)
+    print(current.size)
+    if current.size == 0:
+        new = new_record
+    else:
+        new = np.append(current, new_record, axis=0)
+    print(new)
+
+    #Write the updated record into the cumulative table
+    c.execute('''UPDATE cumulative
+                 SET data = ?
+                 WHERE year = ?''', (new, year))
+
+    conn.commit()
+
+
+def write_record(record, year, mdt, db_path):
     """
     Write the new record for the current year in the database containing the records for each year
     and update the record in the table containing all years. Checks if a record for this year already exists,
     if yes, it updates it, if not it adds it. It also checks if the tables exists, if not it creates them.
     :param record: the new record of the current year
     :param year: the current year
+    :param mdt: the mandatory data for this year
     :param db_path: the path of the database
     :return:
     """
@@ -184,11 +214,13 @@ def write_record(record, year, db_path):
                   )''')
     c.execute('''CREATE TABLE IF NOT EXISTS separate (
                  year INTEGER PRIMARY KEY,
-                 data nparray''')
+                 data nparray
+                    )''')
 
     c.execute('''CREATE TABLE IF NOT EXISTS mandatory (
                   year INTEGER PRIMARY KEY,
-                  mdt INTEGER''')
+                  mdt nparray
+                    )''')
 
     conn.commit()
 
@@ -196,45 +228,86 @@ def write_record(record, year, db_path):
     record_exist = check_existence_record(year, c)
 
     if record_exist:
-        update_record(record, year, c, conn)
+        print("Updating the entry")
+        update_record(record, year, mdt, c, conn)
     else:
+        print("Writing new entry")
+
         #Write new record into the separate table
-        c.execute('''INSERT INTO separate(year, data)
+        c.execute('''INSERT INTO separate (year, data)
                      VALUES(?, ?)''', (year, record))
 
         conn.commit()
 
-        #Query cumulative record of previous year
+        #Write new record of mandatory data into the mandatory table
+        c.execute('''INSERT INTO mandatory (year, mdt)
+                     VALUES(?, ?)''', (year, mdt))
+        conn.commit()
 
-        #Add to the array the record of this year
+        #Query cumulative record of previous year
+        c.execute('''SELECT * FROM cumulative WHERE year=?''', (year - 1,))
+
+        prev_year = c.fetchone()
+
+        #Add to the array the record of this year if previous is not empty
+        if prev_year is None:
+            prev_year = record
+        else:
+            # Returns the rows corresponding to our query i.e. with (year, np.array), so we take the second one
+            prev_year = prev_year[1]
+            prev_year = np.append(prev_year, record, axis=0)
+
+        print(prev_year)
+        print("shape of previous cumulative " + str(prev_year.shape))
 
         #Write new cumulative record into the cumulative table
+        c.execute('''INSERT INTO cumulative (year, data)
+                     VALUES(?, ?)''', (year, prev_year))
+        conn.commit()
 
-    return
+    close_db(conn, c)
 
-
-# data = readData("/home/cpittet/jeunesse_app/presence.xlsx", 22)
+#
+# data = read_data("/home/cpittet/jeunesse_app/presence.xlsx", 22)
 # print(data)
 # print(data.shape)
-
-# data = getMandatoryList("/home/cpittet/jeunesse_app/presence.xlsx", 22)
-# print(data)
-
-conn, c = connect_db('/home/cpittet/jeunesse_app/data/dataApp.db')
-
+#
+# mdt = get_mandatory_list("/home/cpittet/jeunesse_app/presence.xlsx", 22)
+# print(mdt)
+#
+# conn, c = connect_db('/home/cpittet/jeunesse_app/data/dataApp.db')
+#
 # c.execute('''CREATE TABLE cumulative (
 #             year INTEGER PRIMARY KEY,
 #             data nparray
 #             )''')
-#
 # c.execute('''CREATE TABLE separate (
-#             year INTEGER PRIMARY KEY,
-#             data nparray
-#             )''')
-
-conn.commit()
-
-close_db(conn, c)
-
-exist = check_existence_tables('/home/cpittet/jeunesse_app/data/dataApp.db')
-print("table exist" + str(exist))
+#              year INTEGER PRIMARY KEY,
+#              data nparray
+#              )''')
+#
+# conn.commit()
+#
+# close_db(conn, c)
+#
+# exist = check_existence_tables('/home/cpittet/jeunesse_app/data/dataApp.db')
+# print("table exist" + str(exist))
+#
+# write_record(data, 2020, mdt,'/home/cpittet/jeunesse_app/data/dataApp.db')
+#
+# c.execute('''SELECT * FROM cumulative''')
+# cumul = c.fetchall()
+#
+# print(cumul)
+#
+# c.execute('''SELECT * FROM separate''')
+# sep = c.fetchall()
+#
+# print(sep)
+#
+# c.execute('''SELECT * FROM mandatory''')
+# mandat = c.fetchall()
+#
+# print(mandat)
+#
+# close_db(conn, c)
