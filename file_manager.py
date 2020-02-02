@@ -45,18 +45,20 @@ def read_data(path, nbr_activ):
     return data
 
 
-def get_mandatory_list(path, nbr_activ):
+def get_mandatory_and_name_list_from_file(path, nbr_activ):
     """
-    Read the list of mandatory activities in the excel file
+    Read the list of mandatory activities and the name of the activities in the excel file
     :param path: the path where the excel file is located
     :param nbr_activ: the number of activities
-    :return: a list containing booleans where at index i contains whether the ith activity is mandatory or not
+    :return: a np.array containing booleans where at index i contains whether the ith activity is mandatory or not,
+    and the name at ith index of the ith activity
     """
     # Open workbook
     wb = xlrd.open_workbook(path)
     sheet = wb.sheet_by_name("DataApp")
 
-    data = np.empty((1, nbr_activ), dtype=str)
+    #Mandatory list
+    data = np.empty((1, nbr_activ), dtype=bool)
 
     for i in range(1, sheet.nrows):
         cell = sheet.cell_value(i, 4)
@@ -64,7 +66,13 @@ def get_mandatory_list(path, nbr_activ):
             data[0, i - 1] = True
         else:
             data[0, i - 1] = False
-    return data
+    #dtype('U50') for unicode of max 50 chars, with str it is by default only 1 char
+    names = np.empty((1, nbr_activ), dtype=np.dtype('U50'))
+
+    for i in range(1, sheet.nrows):
+        names[0, i - 1] = sheet.cell_value(i, 0)
+
+    return data, names
 
 
 def connect_db(db_path):
@@ -175,15 +183,12 @@ def update_record(new_record, year, mdt, c, conn):
     c.execute('''SELECT * FROM cumulative WHERE year=?''', (year,))
     current = c.fetchone()[1]
 
-    print(current)
     current = current[:-1]
-    print(current)
-    print(current.size)
+
     if current.size == 0:
         new = new_record
     else:
         new = np.append(current, new_record, axis=0)
-    print(new)
 
     #Write the updated record into the cumulative table
     c.execute('''UPDATE cumulative
@@ -193,7 +198,7 @@ def update_record(new_record, year, mdt, c, conn):
     conn.commit()
 
 
-def write_record(record, year, mdt, db_path):
+def write_record(record, year, mdt, names, db_path):
     """
     Write the new record for the current year in the database containing the records for each year
     and update the record in the table containing all years. Checks if a record for this year already exists,
@@ -201,6 +206,7 @@ def write_record(record, year, mdt, db_path):
     :param record: the new record of the current year
     :param year: the current year
     :param mdt: the mandatory data for this year
+    :param names: the names of the activities
     :param db_path: the path of the database
     :return:
     """
@@ -212,6 +218,7 @@ def write_record(record, year, mdt, db_path):
                 year INTEGER PRIMARY KEY,
                 data nparray
                   )''')
+
     c.execute('''CREATE TABLE IF NOT EXISTS separate (
                  year INTEGER PRIMARY KEY,
                  data nparray
@@ -219,7 +226,8 @@ def write_record(record, year, mdt, db_path):
 
     c.execute('''CREATE TABLE IF NOT EXISTS mandatory (
                   year INTEGER PRIMARY KEY,
-                  mdt nparray
+                  mdt nparray,
+                  names nparray
                     )''')
 
     conn.commit()
@@ -240,8 +248,8 @@ def write_record(record, year, mdt, db_path):
         conn.commit()
 
         #Write new record of mandatory data into the mandatory table
-        c.execute('''INSERT INTO mandatory (year, mdt)
-                     VALUES(?, ?)''', (year, mdt))
+        c.execute('''INSERT INTO mandatory (year, mdt, names)
+                     VALUES(?, ?, ?)''', (year, mdt, names))
         conn.commit()
 
         #Query cumulative record of previous year
@@ -267,15 +275,63 @@ def write_record(record, year, mdt, db_path):
 
     close_db(conn, c)
 
-#
-# data = read_data("/home/cpittet/jeunesse_app/presence.xlsx", 22)
+def get_last_cumulative(db_path):
+    """
+    Returns the last entry in the cumulative table in the specified db
+    :param db_path: the location of the db
+    :return: int, np.array : the last year, the last cumulative entry or None if the cumulative table is empty
+    """
+    conn, c = connect_db(db_path)
+
+    #Query the last cumulative entry in the table cumulative
+    c.execute('''SELECT * FROM cumulative ORDER BY year DESC LIMIT 1''')
+    last_year, last_entry = c.fetchone()
+
+    close_db(conn, c)
+
+    return last_year, last_entry
+
+def get_last_separate(db_path):
+    """
+    Returns the last entry in the separate table in the specified db
+    :param db_path: the location of the db
+    :return: int, np.array : the last year, the last separate entry or None if the separate table is empty
+    """
+    conn, c = connect_db(db_path)
+
+    #Query last separate entry in the table separate
+    c.execute('''SELECT * FROM separate ORDER BY year DESC LIMIT 1''')
+    last_year, last_entry = c.fetchone()
+
+    close_db(conn, c)
+
+    return last_year, last_entry
+
+def get_last_mandatory_and_names_from_db(db_path):
+    """
+    Returns the mandatory list of activities from the specified db
+    :param db_path: the location of the db
+    :return: np.array (nbr of activities x 1) : containing True if the ith activity is mandatory False otherwise
+    """
+    conn, c = connect_db(db_path)
+
+    #Query mandatory array in the table mandatory
+    c.execute('''SELECT * FROM mandatory ORDER BY year DESC LIMIT 1''')
+    last_year, last_entry, last_names = c.fetchone()
+
+    close_db(conn, c)
+
+    return last_year, last_entry, last_names
+
+
+data = read_data("/home/cpittet/jeunesse_app/presence.xlsx", 22)
 # print(data)
 # print(data.shape)
 #
-# mdt = get_mandatory_list("/home/cpittet/jeunesse_app/presence.xlsx", 22)
+mdt, names = get_mandatory_and_name_list_from_file("/home/cpittet/jeunesse_app/presence.xlsx", 22)
 # print(mdt)
 #
-# conn, c = connect_db('/home/cpittet/jeunesse_app/data/dataApp.db')
+conn, c = connect_db('/home/cpittet/jeunesse_app/data/dataApp.db')
 #
 # c.execute('''CREATE TABLE cumulative (
 #             year INTEGER PRIMARY KEY,
@@ -293,7 +349,7 @@ def write_record(record, year, mdt, db_path):
 # exist = check_existence_tables('/home/cpittet/jeunesse_app/data/dataApp.db')
 # print("table exist" + str(exist))
 #
-# write_record(data, 2020, mdt,'/home/cpittet/jeunesse_app/data/dataApp.db')
+write_record(data, 2021, mdt, names, '/home/cpittet/jeunesse_app/data/dataApp.db')
 #
 # c.execute('''SELECT * FROM cumulative''')
 # cumul = c.fetchall()
@@ -310,4 +366,20 @@ def write_record(record, year, mdt, db_path):
 #
 # print(mandat)
 #
-# close_db(conn, c)
+close_db(conn, c)
+
+#ly, le = get_last_cumulative('/home/cpittet/jeunesse_app/data/dataApp.db')
+
+#print(ly)
+#print(le)
+
+#ly, le = get_last_separate('/home/cpittet/jeunesse_app/data/dataApp.db')
+#print(ly)
+#print(le)
+
+#ly, le, ln = get_last_mandatory_and_names_from_db('/home/cpittet/jeunesse_app/data/dataApp.db')
+#print(ly)
+#print(le)
+#print(ln)
+
+#close_db(conn, c)
