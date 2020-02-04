@@ -58,19 +58,19 @@ def get_mandatory_and_name_list_from_file(path, nbr_activ):
     sheet = wb.sheet_by_name("DataApp")
 
     #Mandatory list
-    data = np.empty((1, nbr_activ), dtype=bool)
+    data = np.empty(nbr_activ, dtype=bool)
 
     for i in range(1, sheet.nrows):
         cell = sheet.cell_value(i, 4)
         if cell == "Oui" or cell == "oui":
-            data[0, i - 1] = True
+            data[i - 1] = True
         else:
-            data[0, i - 1] = False
+            data[i - 1] = False
     #dtype('U50') for unicode of max 50 chars, with str it is by default only 1 char
-    names = np.empty((1, nbr_activ), dtype=np.dtype('U50'))
+    names = np.empty(nbr_activ, dtype=np.dtype('U50'))
 
     for i in range(1, sheet.nrows):
-        names[0, i - 1] = sheet.cell_value(i, 0)
+        names[i - 1] = sheet.cell_value(i, 0)
 
     return data, names
 
@@ -311,7 +311,7 @@ def get_last_mandatory_and_names_from_db(db_path):
     """
     Returns the mandatory list of activities from the specified db
     :param db_path: the location of the db
-    :return: np.array (nbr of activities x 1) : containing True if the ith activity is mandatory False otherwise
+    :return: np.array (nbr of activities) : containing True if the ith activity is mandatory False otherwise
     """
     conn, c = connect_db(db_path)
 
@@ -324,14 +324,14 @@ def get_last_mandatory_and_names_from_db(db_path):
     return last_year, last_entry, last_names
 
 
-data = read_data("/home/cpittet/jeunesse_app/presence.xlsx", 22)
+#data = read_data("/home/cpittet/jeunesse_app/presence.xlsx", 22)
 # print(data)
 # print(data.shape)
 #
-mdt, names = get_mandatory_and_name_list_from_file("/home/cpittet/jeunesse_app/presence.xlsx", 22)
+#mdt, names = get_mandatory_and_name_list_from_file("/home/cpittet/jeunesse_app/presence.xlsx", 22)
 # print(mdt)
 #
-conn, c = connect_db('/home/cpittet/jeunesse_app/data/dataApp.db')
+#conn, c = connect_db('/home/cpittet/jeunesse_app/data/dataApp.db')
 #
 # c.execute('''CREATE TABLE cumulative (
 #             year INTEGER PRIMARY KEY,
@@ -349,7 +349,7 @@ conn, c = connect_db('/home/cpittet/jeunesse_app/data/dataApp.db')
 # exist = check_existence_tables('/home/cpittet/jeunesse_app/data/dataApp.db')
 # print("table exist" + str(exist))
 #
-write_record(data, 2021, mdt, names, '/home/cpittet/jeunesse_app/data/dataApp.db')
+#write_record(data, 2021, mdt, names, '/home/cpittet/jeunesse_app/data/dataApp.db')
 #
 # c.execute('''SELECT * FROM cumulative''')
 # cumul = c.fetchall()
@@ -366,7 +366,7 @@ write_record(data, 2021, mdt, names, '/home/cpittet/jeunesse_app/data/dataApp.db
 #
 # print(mandat)
 #
-close_db(conn, c)
+#close_db(conn, c)
 
 #ly, le = get_last_cumulative('/home/cpittet/jeunesse_app/data/dataApp.db')
 
