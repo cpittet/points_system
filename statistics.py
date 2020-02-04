@@ -138,30 +138,30 @@ def create_pdf(data, mandatory_list, last_year, names_list, society_size, path):
         fig = plt.figure(figsize=(11.93, 15.98))
         fig.text(0.10, 0.90, 'Activités obligatoires :', size=14, fontweight='bold')
 
-        fig.text(0.10, 0.87, 'Moyenne des personnes présentes : ' + "{:.2f}".format(avg_mdt_present) + '%, ' + str(int(np.around(avg_mdt_present * society_size))) + ' personnes', size=11)
+        fig.text(0.10, 0.87, 'Moyenne des personnes présentes : ' + "{:.2f}".format(100 * avg_mdt_present) + '%, ' + str(int(np.around(avg_mdt_present * society_size))) + ' personnes', size=11)
 
-        fig.text(0.10, 0.84, 'Moyenne des personnes excusées : ' + "{:.2f}".format(avg_mdt_excused) + '%, ' + str(int(np.around(avg_mdt_excused * society_size))) + ' personnes', size=11)
+        fig.text(0.10, 0.84, 'Moyenne des personnes excusées : ' + "{:.2f}".format(100 * avg_mdt_excused) + '%, ' + str(int(np.around(avg_mdt_excused * society_size))) + ' personnes', size=11)
 
-        fig.text(0.10, 0.81, 'Moyenne des personnes non présentes : ' + "{:.2f}".format(avg_mdt_non_present) + '%, ' + str(int(np.around(avg_mdt_non_present * society_size))) + ' personnes', size=11)
+        fig.text(0.10, 0.81, 'Moyenne des personnes non présentes : ' + "{:.2f}".format(100 * avg_mdt_non_present) + '%, ' + str(int(np.around(avg_mdt_non_present * society_size))) + ' personnes', size=11)
 
         fig.text(0.10, 0.70, 'Activités pas obligatoires :', size=14, fontweight='bold')
 
-        fig.text(0.10, 0.67, 'Moyenne des personnes présentes : ' + "{:.2f}".format(avg_non_mdt_present) + '%, ' + str(int(np.around(avg_non_mdt_present * society_size))) + ' personnes', size=11)
+        fig.text(0.10, 0.67, 'Moyenne des personnes présentes : ' + "{:.2f}".format(100 * avg_non_mdt_present) + '%, ' + str(int(np.around(avg_non_mdt_present * society_size))) + ' personnes', size=11)
 
-        fig.text(0.10, 0.64, 'Moyenne des personnes excusées : ' + "{:.2f}".format(avg_non_mdt_excused) + '%, ' + str(int(np.around(avg_non_mdt_excused * society_size))) + ' personnes', size=11)
+        fig.text(0.10, 0.64, 'Moyenne des personnes excusées : ' + "{:.2f}".format(100 * avg_non_mdt_excused) + '%, ' + str(int(np.around(avg_non_mdt_excused * society_size))) + ' personnes', size=11)
 
-        fig.text(0.10, 0.61, 'Moyenne des personnes non présentes : ' + "{:.2f}".format(avg_non_mdt_non_present) + '%, ' + str(
+        fig.text(0.10, 0.61, 'Moyenne des personnes non présentes : ' + "{:.2f}".format(100 * avg_non_mdt_non_present) + '%, ' + str(
             int(np.around(avg_non_mdt_non_present * society_size))) + ' personnes', size=11)
 
         fig.text(0.10, 0.50, 'Toutes les activités :', size=14, fontweight='bold')
 
-        fig.text(0.10, 0.47, 'Moyenne des personnes présentes : ' + "{:.2f}".format(avg_all_present) + '%, ' + str(
+        fig.text(0.10, 0.47, 'Moyenne des personnes présentes : ' + "{:.2f}".format(100 * avg_all_present) + '%, ' + str(
             int(np.around(avg_all_present * society_size))) + ' personnes', size=11)
 
-        fig.text(0.10, 0.44, 'Moyenne des personnes excusées : ' + "{:.2f}".format(avg_all_excused) + '%, ' + str(
+        fig.text(0.10, 0.44, 'Moyenne des personnes excusées : ' + "{:.2f}".format(100 * avg_all_excused) + '%, ' + str(
             int(np.around(avg_all_excused * society_size))) + ' personnes', size=11)
 
-        fig.text(0.10, 0.41, 'Moyenne des personnes non présentes : ' + "{:.2f}".format(avg_all_non_present) + '%, ' + str(
+        fig.text(0.10, 0.41, 'Moyenne des personnes non présentes : ' + "{:.2f}".format(100 * avg_all_non_present) + '%, ' + str(
             int(np.around(avg_all_non_present * society_size))) + ' personnes', size=11)
 
         pdf.savefig()
