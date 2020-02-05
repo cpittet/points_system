@@ -23,17 +23,19 @@ sqlite3.register_adapter(np.ndarray, adapt_array)
 sqlite3.register_converter("nparray", convert_array)
 
 
-def read_data(path, nbr_activ):
+def read_data(path):
     """
     Read the data in the specified excel file
     :param path: the path where the excel file
     containing the data of the current year is located
-    :param nbr_activ: the number of activities
-    :return: a np.array of dimensions (1 x 3*nbr of activities, for present, excused, and non-excused) with the data of the current year
+    :return: a np.array of dimensions (1 x 3*nbr of activities, for present, excused, and non-excused) with the data of the current year, and the number of activities this year
     """
     # Open workbook
     wb = xlrd.open_workbook(path)
     sheet = wb.sheet_by_name("DataApp")
+
+    # The number of activities this year
+    nbr_activ = sheet.nrows - 1
 
     data = np.empty((1, 3 * nbr_activ))
 
@@ -42,7 +44,7 @@ def read_data(path, nbr_activ):
     for i in range(1, 4):
         for j in range(1, sheet.nrows):
             data[0, (i - 1) * nbr_activ + j - 1] = sheet.cell_value(j, i)
-    return data
+    return data, nbr_activ
 
 
 def get_mandatory_and_name_list_from_file(path, nbr_activ):
@@ -57,7 +59,7 @@ def get_mandatory_and_name_list_from_file(path, nbr_activ):
     wb = xlrd.open_workbook(path)
     sheet = wb.sheet_by_name("DataApp")
 
-    #Mandatory list
+    # Mandatory list
     data = np.empty(nbr_activ, dtype=bool)
 
     for i in range(1, sheet.nrows):
@@ -66,7 +68,7 @@ def get_mandatory_and_name_list_from_file(path, nbr_activ):
             data[i - 1] = True
         else:
             data[i - 1] = False
-    #dtype('U50') for unicode of max 50 chars, with str it is by default only 1 char
+    # dtype('U50') for unicode of max 50 chars, with str it is by default only 1 char
     names = np.empty(nbr_activ, dtype=np.dtype('U50'))
 
     for i in range(1, sheet.nrows):
@@ -173,13 +175,13 @@ def update_record(new_record, year, mdt, c, conn):
     c.execute(sql, (new_record, year))
     conn.commit()
 
-    #Query to update the mandatory table
+    # Query to update the mandatory table
     c.execute('''UPDATE mandatory
                  SET mdt = ?
                  WHERE year = ?''', (mdt, year))
     conn.commit()
 
-    #Query to update in the cumulative table
+    # Query to update in the cumulative table
     c.execute('''SELECT * FROM cumulative WHERE year=?''', (year,))
     current = c.fetchone()[1]
 
@@ -190,7 +192,7 @@ def update_record(new_record, year, mdt, c, conn):
     else:
         new = np.append(current, new_record, axis=0)
 
-    #Write the updated record into the cumulative table
+    # Write the updated record into the cumulative table
     c.execute('''UPDATE cumulative
                  SET data = ?
                  WHERE year = ?''', (new, year))
@@ -203,17 +205,17 @@ def write_record(record, year, mdt, names, db_path):
     Write the new record for the current year in the database containing the records for each year
     and update the record in the table containing all years. Checks if a record for this year already exists,
     if yes, it updates it, if not it adds it. It also checks if the tables exists, if not it creates them.
-    :param record: the new record of the current year
+    :param record: np.array () : the new record of the current year
     :param year: the current year
     :param mdt: the mandatory data for this year
     :param names: the names of the activities
     :param db_path: the path of the database
     :return:
     """
-    #Open connection to the db
+    # Open connection to the db
     conn, c = connect_db(db_path)
 
-    #If the tables does not exist, we create them
+    # If the tables does not exist, we create them
     c.execute('''CREATE TABLE IF NOT EXISTS cumulative (
                 year INTEGER PRIMARY KEY,
                 data nparray
@@ -232,7 +234,7 @@ def write_record(record, year, mdt, names, db_path):
 
     conn.commit()
 
-    #Checks if there is already a record for this year
+    # Checks if there is already a record for this year
     record_exist = check_existence_record(year, c)
 
     if record_exist:
@@ -241,23 +243,23 @@ def write_record(record, year, mdt, names, db_path):
     else:
         print("Writing new entry")
 
-        #Write new record into the separate table
+        # Write new record into the separate table
         c.execute('''INSERT INTO separate (year, data)
                      VALUES(?, ?)''', (year, record))
 
         conn.commit()
 
-        #Write new record of mandatory data into the mandatory table
+        # Write new record of mandatory data into the mandatory table
         c.execute('''INSERT INTO mandatory (year, mdt, names)
                      VALUES(?, ?, ?)''', (year, mdt, names))
         conn.commit()
 
-        #Query cumulative record of previous year
+        # Query cumulative record of previous year
         c.execute('''SELECT * FROM cumulative WHERE year=?''', (year - 1,))
 
         prev_year = c.fetchone()
 
-        #Add to the array the record of this year if previous is not empty
+        # Add to the array the record of this year if previous is not empty
         if prev_year is None:
             prev_year = record
         else:
@@ -265,15 +267,15 @@ def write_record(record, year, mdt, names, db_path):
             prev_year = prev_year[1]
             prev_year = np.append(prev_year, record, axis=0)
 
-        print(prev_year)
-        print("shape of previous cumulative " + str(prev_year.shape))
+        print("new cumulative record " + str(prev_year))
 
-        #Write new cumulative record into the cumulative table
+        # Write new cumulative record into the cumulative table
         c.execute('''INSERT INTO cumulative (year, data)
                      VALUES(?, ?)''', (year, prev_year))
         conn.commit()
 
     close_db(conn, c)
+
 
 def get_last_cumulative(db_path):
     """
@@ -283,13 +285,14 @@ def get_last_cumulative(db_path):
     """
     conn, c = connect_db(db_path)
 
-    #Query the last cumulative entry in the table cumulative
+    # Query the last cumulative entry in the table cumulative
     c.execute('''SELECT * FROM cumulative ORDER BY year DESC LIMIT 1''')
     last_year, last_entry = c.fetchone()
 
     close_db(conn, c)
 
     return last_year, last_entry
+
 
 def get_last_separate(db_path):
     """
@@ -299,13 +302,14 @@ def get_last_separate(db_path):
     """
     conn, c = connect_db(db_path)
 
-    #Query last separate entry in the table separate
+    # Query last separate entry in the table separate
     c.execute('''SELECT * FROM separate ORDER BY year DESC LIMIT 1''')
     last_year, last_entry = c.fetchone()
 
     close_db(conn, c)
 
     return last_year, last_entry
+
 
 def get_last_mandatory_and_names_from_db(db_path):
     """
@@ -315,7 +319,7 @@ def get_last_mandatory_and_names_from_db(db_path):
     """
     conn, c = connect_db(db_path)
 
-    #Query mandatory array in the table mandatory
+    # Query mandatory array in the table mandatory
     c.execute('''SELECT * FROM mandatory ORDER BY year DESC LIMIT 1''')
     last_year, last_entry, last_names = c.fetchone()
 
