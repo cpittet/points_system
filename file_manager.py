@@ -156,23 +156,25 @@ def check_existence_record(year, c):
     return exists
 
 
-def update_record(new_record, year, mdt, c, conn):
+def update_record(new_record, year, mdt, society_size, c, conn):
     """
     Update the record of the current year in the database containing the records for each year
     and the record in the table containing all years
     :param new_record: the new record for this year
     :param year: the current year
     :param mdt: the mandatory data for this year
+    :param society_size: the size of the society for that year
     :param c: the cursor of the corresponding open connection to the db
     :param conn: the connection to the corresponding db
     :return:
     """
     # Query to update the separate table
     sql = ''' UPDATE separate
-              SET data = ?
+              SET data = ?,
+              size = ?
               WHERE year = ?'''
 
-    c.execute(sql, (new_record, year))
+    c.execute(sql, (new_record, society_size, year))
     conn.commit()
 
     # Query to update the mandatory table
@@ -200,7 +202,7 @@ def update_record(new_record, year, mdt, c, conn):
     conn.commit()
 
 
-def write_record(record, year, mdt, names, db_path):
+def write_record(record, year, mdt, names, society_size, db_path):
     """
     Write the new record for the current year in the database containing the records for each year
     and update the record in the table containing all years. Checks if a record for this year already exists,
@@ -209,6 +211,7 @@ def write_record(record, year, mdt, names, db_path):
     :param year: the current year
     :param mdt: the mandatory data for this year
     :param names: the names of the activities
+    :param society_size: the size of the society for that year
     :param db_path: the path of the database
     :return:
     """
@@ -223,7 +226,8 @@ def write_record(record, year, mdt, names, db_path):
 
     c.execute('''CREATE TABLE IF NOT EXISTS separate (
                  year INTEGER PRIMARY KEY,
-                 data nparray
+                 data nparray,
+                 size INTEGER
                     )''')
 
     c.execute('''CREATE TABLE IF NOT EXISTS mandatory (
@@ -239,13 +243,13 @@ def write_record(record, year, mdt, names, db_path):
 
     if record_exist:
         print("Updating the entry")
-        update_record(record, year, mdt, c, conn)
+        update_record(record, year, mdt, society_size, c, conn)
     else:
         print("Writing new entry")
 
         # Write new record into the separate table
-        c.execute('''INSERT INTO separate (year, data)
-                     VALUES(?, ?)''', (year, record))
+        c.execute('''INSERT INTO separate (year, data, size)
+                     VALUES(?, ?, ?)''', (year, record, society_size))
 
         conn.commit()
 
@@ -281,7 +285,7 @@ def get_last_cumulative(db_path):
     """
     Returns the last entry in the cumulative table in the specified db
     :param db_path: the location of the db
-    :return: int, np.array : the last year, the last cumulative entry or None if the cumulative table is empty
+    :return: int, np.array, int : the last year, the last cumulative entry or None if the cumulative table is empty
     """
     conn, c = connect_db(db_path)
 
@@ -289,26 +293,30 @@ def get_last_cumulative(db_path):
     c.execute('''SELECT * FROM cumulative ORDER BY year DESC LIMIT 1''')
     last_year, last_entry = c.fetchone()
 
+    # Query the society size in the separate table
+    c.execute('''SELECT size FROM separate ORDER BY year DESC LIMIT 1''')
+    society_size = c.fetchone()[0]
+
     close_db(conn, c)
 
-    return last_year, last_entry
+    return last_year, last_entry, society_size
 
 
 def get_last_separate(db_path):
     """
     Returns the last entry in the separate table in the specified db
     :param db_path: the location of the db
-    :return: int, np.array : the last year, the last separate entry or None if the separate table is empty
+    :return: int, np.array, int : the last year, the last separate entry or None if the separate table is empty
     """
     conn, c = connect_db(db_path)
 
     # Query last separate entry in the table separate
     c.execute('''SELECT * FROM separate ORDER BY year DESC LIMIT 1''')
-    last_year, last_entry = c.fetchone()
+    last_year, last_entry, society_size = c.fetchone()
 
     close_db(conn, c)
 
-    return last_year, last_entry
+    return last_year, last_entry, society_size
 
 
 def get_last_mandatory_and_names_from_db(db_path):
@@ -335,7 +343,7 @@ def get_last_mandatory_and_names_from_db(db_path):
 #mdt, names = get_mandatory_and_name_list_from_file("/home/cpittet/jeunesse_app/presence.xlsx", 22)
 # print(mdt)
 #
-#conn, c = connect_db('/home/cpittet/jeunesse_app/data/dataApp.db')
+#conn, c = connect_db('/home/cpittet/jeunesse_app/points_system/data/dataApp.db')
 #
 # c.execute('''CREATE TABLE cumulative (
 #             year INTEGER PRIMARY KEY,
@@ -370,6 +378,13 @@ def get_last_mandatory_and_names_from_db(db_path):
 #
 # print(mandat)
 #
+
+#last_year, data_full, size = get_last_cumulative('/home/cpittet/jeunesse_app/points_system/data/dataApp.db')
+
+#print(last_year)
+#print(data_full)
+#print(size)
+
 #close_db(conn, c)
 
 #ly, le = get_last_cumulative('/home/cpittet/jeunesse_app/data/dataApp.db')

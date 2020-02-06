@@ -1,8 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
 from matplotlib.backends.backend_pdf import PdfPages
-import datetime
+import os
 
 import file_manager as fm
 
@@ -42,14 +41,14 @@ def create_pdf(data, mandatory_list, last_year, names_list, society_size, path):
     #Number of activities
     nbr_activ = data.shape[1] // 3
 
-    with PdfPages(str(path) + '/Jeunesse_statistiques_' + str(last_year) +'.pdf') as pdf:
+    with PdfPages(os.path.join(str(path), 'Jeunesse_statistiques_' + str(last_year) +'.pdf')) as pdf:
 
-        #Iterate over the categories
+        # Iterate over the categories
         categories = ["présentes", "excusées", "non excusées"]
 
-        for cat in categories:
+        for cat in range(len(categories)):
 
-            #Set A4 portait (in inches...)
+            # Set A4 portait (in inches...)
             fig = plt.figure(figsize=(11.93, 15.98))
 
             # Adjust the spacing between the plots
@@ -61,7 +60,7 @@ def create_pdf(data, mandatory_list, last_year, names_list, society_size, path):
 
             # General title
             plt.suptitle(
-                "Evolution du nombre de personnes " + cat + " pour chaque activités\n(activités obligatoires en rouge)",
+                "Evolution du nombre de personnes " + categories[cat] + " pour chaque activités\n(activités obligatoires en rouge)",
                 fontsize=14, color='black', fontweight='bold')
 
             # Iterate over each activity
@@ -75,7 +74,7 @@ def create_pdf(data, mandatory_list, last_year, names_list, society_size, path):
                 else:
                     color = 'b'
 
-                plt.plot(np.arange(last_year - data.shape[0] + 1, last_year + 1, dtype=int), data[:, i], marker='.', color=color,
+                plt.plot(np.arange(last_year - data.shape[0] + 1, last_year + 1, dtype=int), data[:, i + cat*nbr_activ], marker='.', color=color,
                          linestyle='-')
 
                 # Fix the same limits for all subplots
@@ -89,10 +88,10 @@ def create_pdf(data, mandatory_list, last_year, names_list, society_size, path):
                 plt.grid(True, which='major', axis='y')
 
                 # Title for the subplot
-                plt.title(names_list[0, i], loc='center', fontsize=11, color=color)
+                plt.title(names_list[i], loc='center', fontsize=11, color=color)
 
                 # Annotate with the values
-                for x, y in zip(np.arange(last_year - data.shape[0] + 1, last_year + 1), data[:, i]):
+                for x, y in zip(np.arange(last_year - data.shape[0] + 1, last_year + 1), data[:, i + cat*nbr_activ]):
                     label = "{:d}".format(int(y))
 
                     plt.annotate(label, (x, y), textcoords='offset points', xytext=(0, 6), ha='center')
@@ -134,7 +133,7 @@ def create_pdf(data, mandatory_list, last_year, names_list, society_size, path):
         all_data_non_present = data[-1, 2*nbr_activ:]
         avg_all_non_present = average(all_data_non_present, society_size)
 
-        #Add the averages to the file
+        # Add the averages to the file
         fig = plt.figure(figsize=(11.93, 15.98))
         fig.text(0.10, 0.90, 'Activités obligatoires :', size=14, fontweight='bold')
 

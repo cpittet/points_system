@@ -5,6 +5,7 @@ from tkinter import messagebox
 import os
 
 import file_manager as fm
+import statistics as stat
 
 
 class Home(ttk.Frame):
@@ -25,8 +26,8 @@ class Home(ttk.Frame):
         explications.grid(row=0, column=0, sticky='W', padx=15, pady=15)
 
         # Exit button
-        exit = tk.Button(self, text='Quitter', command=self.exit_manager)
-        exit.grid(row=3, column=4, padx=15, pady=15)
+        exit_but = tk.Button(self, text='Quitter', command=self.exit_manager)
+        exit_but.grid(row=3, column=4, padx=15, pady=15)
 
     def exit_manager(self):
         self.root.destroy()
@@ -43,8 +44,8 @@ class Statistics(ttk.Frame):
 
         # Explications
         self.expl = tk.Label(self,
-                                 text='Vous pouvez enregistrer les statistiques sous le bouton \"Enregister\".\nCela peut prendre quelques secondes.',
-                                 justify='left')
+                             text='Vous pouvez enregistrer les statistiques sous le bouton \"Enregister\".\nCela peut prendre quelques secondes.',
+                             justify='left')
         self.expl.grid(row=1, column=0, padx=15, pady=15, sticky='W')
 
         # Button to compute and save the stats
@@ -53,11 +54,14 @@ class Statistics(ttk.Frame):
 
     def comp_save_stat(self):
         # Open dialog box to get location where to save the file
-        self.parent.filename = filedialog.askopenfilename(initialdir='/',
-                                                          title='Enregistrer les statistiques',
-                                                          filetypes=(
-                                                          ("Fichier Excel", "*.xlsx"), ("Fichier Excel", "*.xls"),
-                                                          ("Tout les fichiers", "*.*")))
+        self.parent.filename = filedialog.askdirectory(title='Enregistrer le fichier sous')
+
+        # Retrieve the data
+        last_year, data_full, society_size = fm.get_last_cumulative(db_path)
+        last_year2, mdt_list, last_names = fm.get_last_mandatory_and_names_from_db(db_path)
+
+        # Compute the stats and save the pdf at the specified location
+        stat.create_pdf(data_full, mdt_list, last_year, last_names, society_size, self.parent.filename)
 
 
 class Predictions(ttk.Frame):
@@ -85,6 +89,12 @@ class DataForm(ttk.Frame):
         self.year_entry = tk.Entry(self, width=15)
         self.year_entry.grid(row=2, column=1, padx=15, pady=15)
 
+        # Entry to specify the society size
+        size = tk.Label(self, text='Nombre de personnes dans la société pour cette année :')
+        size.grid(row=3, column=0, padx=15, pady=15, sticky='W')
+        self.size_entry = tk.Entry(self, width=15)
+        self.size_entry.grid(row=3, column=1, padx=15, pady=15)
+
         # Button to update the database with the selected file
         update_but = tk.Button(self, text='Mettre à jour la base de données', command=self.update_db)
         update_but.grid(row=4, column=2, padx=15, pady=15)
@@ -106,22 +116,22 @@ class DataForm(ttk.Frame):
         # Check first if a file was selected and that the year was entered
         if not(self.parent.filename is None) and (self.parent.filename.endswith('.xlsx') or self.parent.filename.endswith('.xls'))\
            and os.path.exists(self.parent.filename)\
-           and self.year_entry.get() != '':
+           and self.year_entry.get() != ''\
+           and self.size_entry.get() != '':
 
             # First read the data
             data_full, nbr_activ = fm.read_data(self.parent.filename)
             mandatory_list, names = fm.get_mandatory_and_name_list_from_file(self.parent.filename, nbr_activ)
 
-            # Path of the db
-            db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), os.path.join('data', 'dataApp.db'))
             print(db_path)
 
-            # Write the data (separate, cumulative in the db
-            fm.write_record(data_full, int(self.year_entry.get()), mandatory_list, names, db_path)
+            # Write the data (separate, cumulative) in the db
+            fm.write_record(data_full, int(self.year_entry.get()), mandatory_list, names, int(self.size_entry.get()), db_path)
 
             # Clear out the field
             self.year_entry.delete(0, 'end')
             self.path_disp['text'] = ''
+            self.size_entry.delete(0, 'end')
 
             # Display success
             messagebox.showinfo('Mise à jour des données', 'Les données ont bien été mises à jours ! Vous pouvez continuez !')
@@ -133,6 +143,9 @@ class DataForm(ttk.Frame):
             elif self.year_entry.get() == '':
                 # The year was not specified
                 messagebox.showerror('Erreur', 'Vous devez d\'abord spécifier l\'année à laquelle les données correspondent !')
+            elif self.size_entry.get() == '':
+                # The size was not specified
+                messagebox.showerror('Erreur', 'Vous devez d\'abord spécifier le nombre de personnes dans la société pour cette année !')
 
 
 class MainApplication(tk.Frame):
@@ -157,6 +170,10 @@ class MainApplication(tk.Frame):
         tab_parent.add(self.pred_tab, text='Estimations')
 
         tab_parent.pack(expand=1, fill='both')
+
+        # Path of the db
+        global db_path
+        db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), os.path.join('data', 'dataApp.db'))
 
 
 if __name__ == "__main__":
