@@ -3,6 +3,7 @@ from tkinter import ttk
 from tkinter import filedialog
 from tkinter import messagebox
 import os
+import numpy as np
 
 import file_manager as fm
 import statistics as stat
@@ -37,6 +38,7 @@ class Statistics(ttk.Frame):
     def __init__(self, parent, *args, **kwargs):
         ttk.Frame.__init__(self, parent)
         self.parent = parent
+        self.filename = ''
 
         # Reminder to update the data first
         self.reminder = tk.Label(self, text='Ne pas oublier de mettre à jour les données,\nsous l\'onglet \"Données\", en premier !', justify='left')
@@ -49,24 +51,82 @@ class Statistics(ttk.Frame):
         self.expl.grid(row=1, column=0, padx=15, pady=15, sticky='W')
 
         # Button to compute and save the stats
-        self.save_stat = tk.Button(self, text='Enregistrer', command=self.comp_save_stat)
-        self.save_stat.grid(row=2, column=1, padx=15, pady=15)
+        save_stat = tk.Button(self, text='Enregistrer', command=self.comp_save_stat)
+        save_stat.grid(row=2, column=1, padx=15, pady=15)
 
     def comp_save_stat(self):
         # Open dialog box to get location where to save the file
-        self.parent.filename = filedialog.askdirectory(title='Enregistrer le fichier sous')
+        self.filename = filedialog.askdirectory(title='Enregistrer le fichier sous')
 
         # Retrieve the data
         last_year, data_full, society_size = fm.get_last_cumulative(db_path)
         last_year2, mdt_list, last_names = fm.get_last_mandatory_and_names_from_db(db_path)
 
         # Compute the stats and save the pdf at the specified location
-        stat.create_pdf(data_full, mdt_list, last_year, last_names, society_size, self.parent.filename)
+        path_pdf = stat.create_pdf(data_full, mdt_list, last_year, last_names, society_size, self.filename)
+
+        # Display success
+        messagebox.showinfo('Statistiques - ' + str(last_year),
+                            'Calcul terminé, le fichier se trouve sous ' + path_pdf)
 
 
 class Predictions(ttk.Frame):
     def __init__(self, parent, *args, **kwargs):
         ttk.Frame.__init__(self, parent)
+
+        # The "prediction matrix", at beginning empty to avoid computing it multiple times
+        self.pred_matrix = None
+
+        # Retrieve the cumulative data
+        last_year, data_full_cumul, society_size = fm.get_last_cumulative(db_path)
+
+        # Retrieve the mandatory list and names from the db
+        last_year, mdt, name_list = fm.get_last_mandatory_and_names_from_db(db_path)
+
+        self.nbr_activ = data_full_cumul.shape[1] // 3
+
+        # The "titles" of the columns
+        names = tk.Label(self, text='Activités :', justify='left')
+        names.grid(row=0, column=0, padx=15, pady=15, sticky='W')
+
+        points = tk.Label(self, text='Points accordés :', justify='left')
+        points.grid(row=0, column=1, padx=15, pady=15, sticky='W')
+
+        mandat = tk.Label(self, text='Obligatoires :', justify='left')
+        mandat.grid(row=0, column=2, padx=15, pady=15, sticky='W')
+
+        prediction = tk.Label(self, text='Pourcentage de présence estimé,\nnbr. de personnes (par rapport au nombre actuel de personnes)')
+        prediction.grid(row=0, column=3, padx=15, pady=15, sticky='W')
+
+        # The list for the labels corresponding to activities
+        activities_labels = [None] * self.nbr_activ
+        activities_entries = [None] * self.nbr_activ
+        activities_mdt = [None] * self.nbr_activ
+        activities_var_check = np.empty(self.nbr_activ, dtype=int)
+        activities_predict = [None] * self.nbr_activ
+
+        for i in range(self.nbr_activ):
+            activities_labels[i] = tk.Label(self, text=name_list[i], justify='left')
+            activities_labels[i].grid(row=i + 1, column=0, padx=15, pady=15, sticky='W')
+
+            activities_entries[i] = tk.Entry(self, width=15)
+            activities_entries[i].grid(row=i + 1, column=1, padx=15, pady=15)
+
+            activities_mdt[i] = tk.Checkbutton(self, text='Obligatoire', variable=activities_var_check[i],
+                                               onvalue=1, offvalue=0)
+            activities_mdt[i].grid(row=i + 1, column=2, padx=15, pady=15)
+            activities_mdt[i].deselect()
+
+            activities_predict[i] = tk.Label(self, text='')
+            activities_predict[i].grid(row=i + 1, column=3, padx=15, pady=15)
+
+        # Button to compute the predictions
+        pred_but = tk.Button(self, text='Calculer', command=self.compute_predictions)
+        pred_but.grid(row=self.nbr_activ + 1, column=4, padx=15, pady=15)
+
+    def compute_predictions(self):
+        # Get the data from input gui
+        input_points = np.empty(self.nbr_activ, dtype=int)
 
 
 class DataForm(ttk.Frame):
@@ -159,8 +219,8 @@ class MainApplication(tk.Frame):
 
         # Create all the frames that will be in each tab
         self.home_tab = Home(parent=tab_parent, root=parent, *args, **kwargs)
-        self.stat_tab = Statistics(tab_parent, *args, **kwargs)
-        self.pred_tab = Predictions(tab_parent, *args, **kwargs)
+        self.stat_tab = Statistics(parent=tab_parent, *args, **kwargs)
+        self.pred_tab = Predictions(parent=tab_parent, *args, **kwargs)
         self.data_tab = DataForm(parent=tab_parent, *args, **kwargs)
 
         # Create and add all the tabs
@@ -190,7 +250,7 @@ if __name__ == "__main__":
     #root.iconbitmap('path')
 
     # Creates the GUI
-    MainApplication(root).pack()
+    MainApplication(root).pack(padx=15, pady=15)
 
     # Start it
     root.mainloop()

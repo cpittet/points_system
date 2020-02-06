@@ -3,8 +3,6 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 import os
 
-import file_manager as fm
-
 
 def average(data, society_size):
     """
@@ -36,12 +34,12 @@ def create_pdf(data, mandatory_list, last_year, names_list, society_size, path):
     :param names_list: the names of the activities
     :param society_size: the current size of the society
     :param path: the location where to save the pdf (only folder path, the name of the file is automatic)
-    :return:
+    :return: the path where the file was saved
     """
-    #Number of activities
+    # Number of activities
     nbr_activ = data.shape[1] // 3
-
-    with PdfPages(os.path.join(str(path), 'Jeunesse_statistiques_' + str(last_year) +'.pdf')) as pdf:
+    path_pdf = os.path.join(str(path), 'Jeunesse_statistiques_' + str(last_year) +'.pdf')
+    with PdfPages(path_pdf) as pdf:
 
         # Iterate over the categories
         categories = ["présentes", "excusées", "non excusées"]
@@ -65,7 +63,7 @@ def create_pdf(data, mandatory_list, last_year, names_list, society_size, path):
 
             # Iterate over each activity
             for i in range(nbr_activ):
-                ax = plt.subplot(rows, cols, i + 1)
+                plt.subplot(rows, cols, i + 1)
 
                 # Choose the color according if the activity is mandatory or not :
                 # Red for mandatory, blue for non mandatory
@@ -81,10 +79,10 @@ def create_pdf(data, mandatory_list, last_year, names_list, society_size, path):
                 plt.xlim(last_year - data.shape[0], last_year + 1)
                 plt.ylim(0, society_size)
 
-                #Format the x ticks
+                # Format the x ticks
                 plt.xticks(np.arange(last_year - data.shape[0] + 1, last_year + 1, dtype=int))
 
-                #Add a grid
+                # Add a grid
                 plt.grid(True, which='major', axis='y')
 
                 # Title for the subplot
@@ -96,11 +94,11 @@ def create_pdf(data, mandatory_list, last_year, names_list, society_size, path):
 
                     plt.annotate(label, (x, y), textcoords='offset points', xytext=(0, 6), ha='center')
 
-            #Save figure to the pdf
+            # Save figure to the pdf
             pdf.savefig()
             plt.close()
 
-        #Add the averages
+        # Add the averages
 
         mdt_list_index = np.argwhere(mandatory_list == True)
 
@@ -169,6 +167,7 @@ def create_pdf(data, mandatory_list, last_year, names_list, society_size, path):
         #Set the file's metadata
         d = pdf.infodict()
         d['Subject'] = 'Evolution des présences - Jeunesse Marsens'
+    return path_pdf
 
 
 #lymdt, lmdt, names = fm.get_last_mandatory_and_names_from_db('/home/cpittet/jeunesse_app/data/dataApp.db')
