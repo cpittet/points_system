@@ -1,7 +1,8 @@
 import numpy as np
 
 """
-X is the input data of type np.array of dimensions (nbr of years, nbr of activities + mandatory_list size + 1), where the data for one year
+X is the input data of type np.array of dimensions (nbr of years, nbr of activities + mandatory_list size + 1),
+where the data for one year , i.e. 1 input,
 represents the number of points we want to give for each activity. The + 1 accounts for the bias ! So the data given as
 input should already have been expanded with this 1 for the bias ! Also we incorporate the mandatory element,
 if an activity is mandatory then its value is 1 in the input, if not it is 0.
