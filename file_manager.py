@@ -4,6 +4,12 @@ import sqlite3
 import os.path
 import io
 
+"""
+The separate table contains the records for each year separately and in term of persons.
+The cumulative table contains the cumulative records for each year and in term of percentage w.r.t. to
+each of the years an entry corresponds to.
+"""
+
 
 def adapt_array(arr):
     out = io.BytesIO()
@@ -199,10 +205,10 @@ def update_record(new_record, year, mdt, society_size, points, c, conn):
     cur_points = cur_points[:-1]
 
     if current.size == 0:
-        new = new_record
+        new = new_record / society_size
         new_points = points
     else:
-        new = np.append(current, new_record, axis=0)
+        new = np.append(current, new_record / society_size, axis=0)
         new_points = np.append(cur_points, points, axis=0)
 
     # Write the updated record into the cumulative table
@@ -280,15 +286,15 @@ def write_record(record, year, mdt, names, society_size, points, db_path):
 
         # Add to the array the record of this year if previous is not empty
         if prev_data is None:
-            prev_data = record
-            prev_points = points
+            prev_data = record / society_size
+            prev_points = np.reshape(points, (1, -1))
         else:
             # Returns the rows corresponding to our query i.e. with (year, data presence, points), so we take the second one
             prev_points = prev_data[2]
             prev_data = prev_data[1]
-            prev_data = np.append(prev_data, record, axis=0)
+            prev_data = np.append(prev_data, record / society_size, axis=0)
 
-            prev_points = np.append(prev_points, points, axis=0)
+            prev_points = np.append(prev_points, np.reshape(points, (1, -1)), axis=0)
 
 
         print("new cumulative record " + str(prev_data))
@@ -306,7 +312,7 @@ def get_last_cumulative(db_path):
     """
     Returns the last entry in the cumulative table in the specified db
     :param db_path: the location of the db
-    :return: int, np.array, int, np.array : the last year, the last cumulative entry or None if the cumulative table is empty
+    :return: int, np.array, array, np.array : the last year, the last cumulative entry or None if the cumulative table is empty
     """
     conn, c = connect_db(db_path)
 
@@ -314,9 +320,9 @@ def get_last_cumulative(db_path):
     c.execute('''SELECT * FROM cumulative ORDER BY year DESC LIMIT 1''')
     last_year, last_entry, last_points = c.fetchone()
 
-    # Query the society size in the separate table
-    c.execute('''SELECT size FROM separate ORDER BY year DESC LIMIT 1''')
-    society_size = c.fetchone()[0]
+    # Query the society sizes in the separate table
+    c.execute('''SELECT size FROM separate''')
+    society_size = c.fetchall()
 
     close_db(conn, c)
 

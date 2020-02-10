@@ -9,6 +9,7 @@ import numpy as np
 import file_manager as fm
 import statistics as stat
 import KRR
+from KRR import linear_kernel
 
 
 class Home(ttk.Frame):
@@ -64,10 +65,15 @@ class Statistics(ttk.Frame):
         last_year, data_full, society_size, last_points = fm.get_last_cumulative(db_path)
         last_year2, mdt_list, last_names = fm.get_last_mandatory_and_names_from_db(db_path)
 
+        # Reput cumulative data in term of persons
+        society_size = np.array(society_size).reshape((data_full.shape[0], -1))
+        print(society_size)
+        print(data_full)
+        data_full = data_full * society_size
         print(data_full)
 
         # Compute the stats and save the pdf at the specified location
-        path_pdf = stat.create_pdf(data_full, mdt_list, last_year, last_names, society_size, self.filename)
+        path_pdf = stat.create_pdf(data_full, mdt_list, last_year, last_names, society_size[-1,0], self.filename)
 
         # Display success
         messagebox.showinfo('Statistiques - ' + str(last_year),
@@ -86,12 +92,12 @@ class Predictions(ttk.Frame):
         # restart for the first time
         if os.path.exists(db_path):
             # Retrieve the cumulative data
-            last_year, data_full_cumul, society_size, last_points = fm.get_last_cumulative(db_path)
+            last_year, self.data_full_cumul, self.society_size, self.last_points = fm.get_last_cumulative(db_path)
 
             # Retrieve the mandatory list and names from the db
-            last_year, mdt, name_list = fm.get_last_mandatory_and_names_from_db(db_path)
+            last_year, mdt, self.name_list = fm.get_last_mandatory_and_names_from_db(db_path)
 
-            self.nbr_activ = data_full_cumul.shape[1] // 3
+            self.nbr_activ = self.data_full_cumul.shape[1] // 3
 
         # The "titles" of the columns
         names = tk.Label(self, text='Activités :', justify='left')
@@ -100,8 +106,8 @@ class Predictions(ttk.Frame):
         points = tk.Label(self, text='Points accordés :', justify='left')
         points.grid(row=0, column=1, padx=15, pady=15, sticky='W')
 
-        mandat = tk.Label(self, text='Obligatoires :', justify='left')
-        mandat.grid(row=0, column=2, padx=15, pady=15, sticky='W')
+        #mandat = tk.Label(self, text='Obligatoires :', justify='left')
+        #mandat.grid(row=0, column=2, padx=15, pady=15, sticky='W')
 
         prediction = tk.Label(self, text='Pourcentage de présence estimé,\nnbr. de personnes (par rapport au nombre actuel de personnes)')
         prediction.grid(row=0, column=3, padx=15, pady=15, sticky='W')
@@ -110,20 +116,20 @@ class Predictions(ttk.Frame):
         self.activities_labels = [None] * self.nbr_activ
         self.activities_entries = [None] * self.nbr_activ
         self.activities_mdt = [None] * self.nbr_activ
-        self.activities_var_check = np.empty(self.nbr_activ, dtype=int)
+        # self.activities_var_check = np.empty(self.nbr_activ, dtype=int)
         self.activities_predict = [None] * self.nbr_activ
 
         for i in range(self.nbr_activ):
-            self.activities_labels[i] = tk.Label(self, text=name_list[i], justify='left')
+            self.activities_labels[i] = tk.Label(self, text=self.name_list[i], justify='left')
             self.activities_labels[i].grid(row=i + 1, column=0, padx=15, pady=15, sticky='W')
 
             self.activities_entries[i] = tk.Entry(self, width=15)
             self.activities_entries[i].grid(row=i + 1, column=1, padx=15, pady=15)
 
-            self.activities_mdt[i] = tk.Checkbutton(self, text='Obligatoire', variable=self.activities_var_check[i],
-                                               onvalue=1, offvalue=0)
-            self.activities_mdt[i].grid(row=i + 1, column=2, padx=15, pady=15)
-            self.activities_mdt[i].deselect()
+            #self.activities_mdt[i] = tk.Checkbutton(self, text='Obligatoire', variable=self.activities_var_check[i],
+            #                                   onvalue=1, offvalue=0)
+            #self.activities_mdt[i].grid(row=i + 1, column=2, padx=15, pady=15)
+            #self.activities_mdt[i].deselect()
 
             self.activities_predict[i] = tk.Label(self, text='')
             self.activities_predict[i].grid(row=i + 1, column=3, padx=15, pady=15)
@@ -137,25 +143,39 @@ class Predictions(ttk.Frame):
         input_points = np.empty(self.nbr_activ, dtype=int)
 
         for i in range(self.nbr_activ):
-            input_points[i] = int(self.activities_entries[i].get())
+            user_in = self.activities_entries[i].get()
+            if user_in == '':
+                messagebox.showerror('Erreur', 'Vous n\'avez pas entré de points pour l\'activité \"' + self.name_list[i] + '\" !')
+                return
+            input_points[i] = int(user_in)
 
         # Retrieve the values of the checkboxes
-        input_mdt = self.activities_var_check
+        # input_mdt = self.activities_var_check
 
-        input = np.append(input_points, input_mdt, axis=0)
+        # input = np.append(input_points, input_mdt, axis=0)
 
-        # Expand the input with the bias term
-        x = np.append(input, np.array([1]))
+        # Expand the input with the bias term and put it into percentages
+        x = np.append(input_points, np.ones((1, 1))) / self.society_size
 
-        # Retrieve training data, the X
+        # Construct matrix of input training data and expand the training data with the bias term
+        nbr_years = self.last_points.shape[0]
+        X = np.concatenate((self.last_points, np.ones((nbr_years, 1))), axis=1)
 
+        # Rename ground truth training data
+        Y = self.data_full_cumul[:, :self.nbr_activ]
 
         # Check if the prediction matrix was already computed, if not compute it
         if self.pred_matrix is None:
-            K = KRR.matrix_kernel()
+            K = KRR.matrix_kernel(X, linear_kernel)
+            lambd = 0
+            self.pred_matrix = KRR.prediction_matrix(Y, K, lambd)
 
+        # Compute the predictions
+        predictions = KRR.predict_KRR(X, x, Y, lambd=0, kernel_function=linear_kernel, pred_matrix=self.pred_matrix)
 
-
+        # Display the results, note that we display 0 % if the prediction is negative, as it is non sense to have negative presence
+        for i in range(self.nbr_activ):
+            self.activities_predict[i]['text'] = "{:.2f} %, {:d} personnes".format(predictions[i,0], int(predictions[i,0] * self.society_size))
 
 
 class DataForm(ttk.Frame):

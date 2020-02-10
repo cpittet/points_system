@@ -1,11 +1,11 @@
 import numpy as np
 
 """
-X is the input data of type np.array of dimensions (nbr of years, nbr of activities + mandatory_list size + 1),
-where the data for one year , i.e. 1 input,
+X is the input data of type np.array of dimensions (nbr of years, nbr of activities + 1), where the data for one year , i.e. 1 input,
 represents the number of points we want to give for each activity. The + 1 accounts for the bias ! So the data given as
-input should already have been expanded with this 1 for the bias ! Also we incorporate the mandatory element,
-if an activity is mandatory then its value is 1 in the input, if not it is 0.
+input should already have been expanded with this 1 for the bias !
+Y is the output vector of shape (nbr of years, nbr of activities) representing the predicted percentage of presence for
+each of the activities.
 """
 
 
@@ -61,12 +61,12 @@ def matrix_kernel(X, kernel_function, *kernel_args):
     return K
 
 
-def prediction_matrix(Y, K, lambd):
+def prediction_matrix(Y, K, lambd=0):
     """
     Computes the matrix Y^T (K + lambda * Id)^(-1) used for the prediction
     :param Y: np.array (nbr of years, nbr of activities) : the ground truth outputs of the training data
     :param K: np.array (nbr of years, nbr of years) : the kernel matrix
-    :param lambd: the regularizer influence
+    :param lambd: the regularizer influence, default to 0, i.e. no regularization
     :return:
     """
     return Y.T @ np.linalg.inv(K + lambd * np.eye(Y.shape[0]))
@@ -99,7 +99,7 @@ def predict_KRR(X, x, Y, lambd, kernel_function, *kernel_args, pred_matrix=None)
     :param kernel_function: the kernel function
     :param kernel_args: the arguments for the kernel function if needed
     :param pred_matrix: the prediction matrix, if None (default) it is computed
-    :return: np.array (nbr of activities, )
+    :return: np.array (nbr of activities, 1)
     """
     if pred_matrix is None:
         K = matrix_kernel(X, kernel_function, *kernel_args)
