@@ -6,10 +6,9 @@ import os
 import numpy as np
 
 # Personal modules
-import file_manager as fm
-import statistics as stat
-import KRR
-from KRR import linear_kernel
+import points_system.file_manager as fm
+import points_system.statistics as stat
+from points_system.KRR import linear_kernel
 
 
 class Home(ttk.Frame):
@@ -20,9 +19,19 @@ class Home(ttk.Frame):
 
         # The explications about how to use the app
         expl = """
-        En premier, mise à jour des données (onglet données)
-        Ensuite, les statistiques sont disponibles sous l'onglet Statistiques,
-        les estimations selon les points données sont disponibles sous l'onglet Estimations
+        Salut ! Voici la marche à suivre, dans l'ordre :
+        
+        1) Mise à jour des données sous l'onglet \"Données\",
+        2) PDF des statistiques sous l'onglet \"Satistiques\",
+        3.a) Si c'est votre première utilisation de cette application, vous devez
+        quitter et la redémarrer. (Pas nécessaire, pour les prochaines utilisations !)
+        3.b ) Outils d'estimations des points sous l'onglet \"Estimations\".
+        Attention, cela reste des estimations !
+        
+        Remarques :
+            - Vous trouverez un \"mode d'emploi\" détaillé sous ...
+            - Veillez à bien entrer les fichiers de données dans l'ordre croissant des années !
+            - Bien utiliser le format de fichier excel convenu et non un autre !
         """
         explications = tk.Label(self, text=expl, justify='left')
 
@@ -155,7 +164,7 @@ class Predictions(ttk.Frame):
         # input = np.append(input_points, input_mdt, axis=0)
 
         # Expand the input with the bias term and put it into percentages
-        x = np.append(input_points, np.ones((1, 1))) / self.society_size
+        x = np.append(input_points, np.ones((1, 1)))
 
         # Construct matrix of input training data and expand the training data with the bias term
         nbr_years = self.last_points.shape[0]
@@ -175,7 +184,10 @@ class Predictions(ttk.Frame):
 
         # Display the results, note that we display 0 % if the prediction is negative, as it is non sense to have negative presence
         for i in range(self.nbr_activ):
-            self.activities_predict[i]['text'] = "{:.2f} %, {:d} personnes".format(predictions[i,0], int(predictions[i,0] * self.society_size))
+            presence = predictions[i,0]
+            if presence < 0:
+                presence = 0
+            self.activities_predict[i]['text'] = "{:.2f} %, {:d} personnes".format(presence, int(presence * self.society_size[-1][0]))
 
 
 class DataForm(ttk.Frame):
@@ -284,8 +296,7 @@ class MainApplication(tk.Frame):
 
         tab_parent.pack(expand=1, fill='both')
 
-
-if __name__ == "__main__":
+def main():
     # The main window
     root = tk.Tk()
 
@@ -293,13 +304,16 @@ if __name__ == "__main__":
     root.title('Système de points  -  Jeunesse Marsens')
 
     # Fix the starting geometry
-    #root.geometry('1000x500')
+    # root.geometry('1000x500')
 
     # Set the icon
-    #root.iconbitmap('path')
+    # root.iconbitmap('path')
 
     # Creates the GUI
     MainApplication(root).pack(padx=15, pady=15)
 
     # Start it
     root.mainloop()
+
+if __name__ == "__main__":
+    main()
