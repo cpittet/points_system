@@ -52,7 +52,7 @@ def read_data(path):
     for i in range(1, 5):
         for j in range(1, sheet.nrows):
             if i == 1:
-                points[j - 1] = sheet.cell_value(j,i)
+                points[j - 1] = sheet.cell_value(j, i)
             else:
                 data[0, (i - 2) * nbr_activ + j - 1] = sheet.cell_value(j, i)
 
