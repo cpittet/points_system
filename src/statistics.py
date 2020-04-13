@@ -50,7 +50,7 @@ def create_pdf(data, mandatory_list, last_year, names_list, society_size, path):
             fig = plt.figure(figsize=(11.93, 15.98))
 
             # Adjust the spacing between the plots
-            fig.subplots_adjust(hspace=1.75, wspace=0.5)
+            fig.subplots_adjust(hspace=2, wspace=0.5)
 
             # Compute number of columns and rows in the subplots
             cols = 2
@@ -77,7 +77,7 @@ def create_pdf(data, mandatory_list, last_year, names_list, society_size, path):
 
                 # Fix the same limits for all subplots
                 plt.xlim(last_year - data.shape[0], last_year + 1)
-                plt.ylim(0, society_size)
+                plt.ylim(0, society_size+20)
 
                 # Format the x ticks
                 plt.xticks(np.arange(last_year - data.shape[0] + 1, last_year + 1, dtype=int))
@@ -99,7 +99,6 @@ def create_pdf(data, mandatory_list, last_year, names_list, society_size, path):
             plt.close()
 
         # Add the averages
-
         mdt_list_index = np.argwhere(mandatory_list == True)
 
         mdt_data_present = data[-1, :nbr_activ][mdt_list_index]
@@ -133,6 +132,10 @@ def create_pdf(data, mandatory_list, last_year, names_list, society_size, path):
 
         # Add the averages to the file
         fig = plt.figure(figsize=(11.93, 15.98))
+        plt.suptitle(
+            "Statistiques année " + str(last_year),
+            fontsize=14, color='black', fontweight='bold')
+
         fig.text(0.10, 0.90, 'Activités obligatoires :', size=14, fontweight='bold')
 
         fig.text(0.10, 0.87, 'Moyenne des personnes présentes : ' + "{:.2f}".format(100 * avg_mdt_present) + '%, ' + str(int(np.around(avg_mdt_present * society_size))) + ' personnes', size=11)
@@ -164,7 +167,7 @@ def create_pdf(data, mandatory_list, last_year, names_list, society_size, path):
         pdf.savefig()
         plt.close()
 
-        #Set the file's metadata
+        # Set the file's metadata
         d = pdf.infodict()
         d['Subject'] = 'Evolution des présences - Jeunesse Marsens'
     return path_pdf

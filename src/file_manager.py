@@ -1,12 +1,11 @@
 import xlrd
 import numpy as np
 import sqlite3
-import os.path
 import io
 
 """
 The separate table contains the records for each year separately and in term of persons.
-The cumulative table contains the cumulative records for each year and in term of percentage w.r.t. to
+The cumulative record contains the cumulative records for each year and in term of percentage w.r.t. to
 each of the years an entry corresponds to.
 """
 
@@ -118,41 +117,6 @@ def close_db(conn, cursor):
     conn.close()
 
 
-def check_existence_tables(db_path):
-    """
-    USELESS...
-    Checks whether the db already contains the tables
-    :param db_path: location of the db if it already has been created
-    :return: False if the db does not exists or does not contains the tables, True otherwise
-    """
-    if not (os.path.isfile(db_path)):
-        return False
-
-    conn, c = connect_db(db_path)
-
-    # Query the number of tables with the name cumulative
-    c.execute('''SELECT count(name) FROM sqlite_master
-    WHERE type='table' AND name='cumulative' ''')
-
-    # Fetch the result
-    cumul = False
-    if c.fetchone()[0] == 1:
-        cumul = True
-
-    # Query the number of tables with the name separate
-    c.execute('''SELECT count(name) FROM sqlite_master
-    WHERE type='table' AND name='separate' ''')
-
-    # Fetch the result
-    sep = False
-    if c.fetchone()[0] == 1:
-        sep = True
-
-    close_db(conn, c)
-
-    return cumul and sep
-
-
 def check_existence_record(year, c):
     """
     Checks if the record for the given year already exists
@@ -161,6 +125,7 @@ def check_existence_record(year, c):
     :return: boolean : true if there already is a record for this year,
     false otherwise
     """
+
     # Query the entry
     c.execute('''SELECT year FROM separate WHERE year=?''', (year,))
     exists = c.fetchall()
@@ -197,30 +162,8 @@ def update_record(new_record, year, mdt, society_size, points, c, conn):
                  WHERE year = ?''', (mdt, year))
     conn.commit()
 
-    # Query to update in the cumulative table
-    c.execute('''SELECT * FROM cumulative WHERE year=?''', (year,))
-    last_year, current, cur_points = c.fetchone()
 
-    current = current[:-1]
-    cur_points = cur_points[:-1]
-
-    if current.size == 0:
-        new = new_record / society_size
-        new_points = points
-    else:
-        new = np.append(current, new_record / society_size, axis=0)
-        new_points = np.append(cur_points, points, axis=0)
-
-    # Write the updated record into the cumulative table
-    c.execute('''UPDATE cumulative
-                 SET data = ?,
-                 points = ?
-                 WHERE year = ?''', (new, new_points, year))
-
-    conn.commit()
-
-
-def write_record(record, year, mdt, names, society_size, points, db_path):
+def write_record(record, year, mdt, names, society_size, points, conn, c):
     """
     Write the new record for the current year in the database containing the records for each year
     and update the record in the table containing all years. Checks if a record for this year already exists,
@@ -231,19 +174,12 @@ def write_record(record, year, mdt, names, society_size, points, db_path):
     :param names: the names of the activities
     :param society_size: the size of the society for that year
     :param points: np.array of the points attributed to the activities for this year
-    :param db_path: the path of the database
+    :param conn: the connection to the db variable
+    :param c: the cursor to the db variable
     :return:
     """
-    # Open connection to the db
-    conn, c = connect_db(db_path)
 
     # If the tables does not exist, we create them
-    c.execute('''CREATE TABLE IF NOT EXISTS cumulative (
-                year INTEGER PRIMARY KEY,
-                data nparray,
-                points nparray
-                  )''')
-
     c.execute('''CREATE TABLE IF NOT EXISTS separate (
                  year INTEGER PRIMARY KEY,
                  data nparray,
@@ -279,86 +215,99 @@ def write_record(record, year, mdt, names, society_size, points, db_path):
                      VALUES(?, ?, ?)''', (year, mdt, names))
         conn.commit()
 
-        # Query cumulative record of previous year
-        c.execute('''SELECT * FROM cumulative WHERE year=?''', (year - 1,))
 
-        prev_data = c.fetchone()
+def get_all_separate(conn, c):
+    """
+    Returns all the records in the db corresponding, ordered by ascending year
+    :param conn: the connection to the db we want to look in
+    :param c: the cursor of the db
+    :return: list of tuples (int, np.array, np.array, int : year, the separate entry,
+             the points for each activity, size of the society)
+             or None if it does not exist
+    """
+    # Query separate entries in the table separate
+    c.execute('''SELECT * FROM separate ORDER BY year ASC''')
+    records = c.fetchall()
 
-        # Add to the array the record of this year if previous is not empty
-        if prev_data is None:
-            prev_data = record / society_size
-            prev_points = np.reshape(points, (1, -1))
-        else:
-            # Returns the rows corresponding to our query i.e. with (year, data presence, points), so we take the second one
-            prev_points = prev_data[2]
-            prev_data = prev_data[1]
-            prev_data = np.append(prev_data, record / society_size, axis=0)
-
-            prev_points = np.append(prev_points, np.reshape(points, (1, -1)), axis=0)
-
-
-        print("new cumulative record " + str(prev_data))
-        print("points cumul " + str(prev_points))
-
-        # Write new cumulative record into the cumulative table
-        c.execute('''INSERT INTO cumulative (year, data, points)
-                     VALUES(?, ?, ?)''', (year, prev_data, prev_points))
-        conn.commit()
-
-    close_db(conn, c)
+    return records
 
 
-def get_last_cumulative(db_path):
+def construct_cumulative(records):
+    """
+    Construct a cumulative record according to the records in the db
+    :param records: the separate records (list of tuples : (int, np.array, np.array, int : year, the separate entry,
+                                                            the points for each activity, size of the society)
+    :return: int, np.array, array, np.array : the last year, the cumulative entry, the array of society sizes
+             for each year, the np.array of the points for each years and each activity
+             or None if there is no separate entries
+    """
+    if len(records) == 0:
+        return None
+
+    # The year of the last record
+    last_year = records[len(records)-1][0]
+
+    # The np array containing the cumulative entry (percentage w.r.t. size of the society for that year)
+    cumul = np.empty((len(records), records[0][1].shape[1]))
+
+    # The array of the size for each years
+    society_sizes = [0]*len(records)
+
+    # The array of the points for each years, divided by 3 because there are 3 categories of presence
+    # concatenated in that array, so there are actually only a third of activities
+    points = np.empty((len(records), records[0][1].shape[1] // 3))
+
+    for i in range(len(records)):
+        # The np array records[i][0] is of shape (1, 66) : [[...]] and we only want 1 dimension
+        cumul[i] = records[i][1][0] / records[i][3]
+        society_sizes[i] = records[i][3]
+        points[i] = np.reshape(records[i][2], (1, -1))
+
+    return last_year, cumul, society_sizes, points
+
+
+def get_last_cumulative(conn, c):
     """
     Returns the last entry in the cumulative table in the specified db
-    :param db_path: the location of the db
-    :return: int, np.array, array, np.array : the last year, the last cumulative entry or None if the cumulative table is empty
+    :param conn: the connection to the db variable
+    :param c: the cursor to the db variable
+    :return: int, np.array, array, np.array : the last year, the cumulative entry
+             or None if there is no entries yet
     """
-    conn, c = connect_db(db_path)
 
-    # Query the last cumulative entry in the table cumulative
-    c.execute('''SELECT * FROM cumulative ORDER BY year DESC LIMIT 1''')
-    last_year, last_entry, last_points = c.fetchone()
+    # Query all the separate entries
+    records = get_all_separate(conn, c)
 
-    # Query the society sizes in the separate table
-    c.execute('''SELECT size FROM separate''')
-    society_size = c.fetchall()
-
-    close_db(conn, c)
-
-    return last_year, last_entry, society_size, last_points
+    # Construct and return the cumulative entry
+    return construct_cumulative(records)
 
 
-def get_last_separate(db_path):
+def get_last_separate(conn, c):
     """
     Returns the last entry in the separate table in the specified db
-    :param db_path: the location of the db
+    :param conn: the connection to the db variable
+    :param c: the cursor to the db variable
     :return: int, np.array, np.array, int : the last year, the last separate entry or None if the separate table is empty
     """
-    conn, c = connect_db(db_path)
 
     # Query last separate entry in the table separate
     c.execute('''SELECT * FROM separate ORDER BY year DESC LIMIT 1''')
     last_year, last_entry, last_points, society_size = c.fetchone()
 
-    close_db(conn, c)
-
     return last_year, last_entry, last_points, society_size
 
 
-def get_last_mandatory_and_names_from_db(db_path):
+def get_last_mandatory_and_names_from_db(conn, c):
     """
     Returns the mandatory list of activities from the specified db
-    :param db_path: the location of the db
+    :param conn: the connection to the db variable
+    :param c: the cursor to the db variable
     :return: np.array (nbr of activities) : containing True if the ith activity is mandatory False otherwise
     """
-    conn, c = connect_db(db_path)
 
     # Query mandatory array in the table mandatory
     c.execute('''SELECT * FROM mandatory ORDER BY year DESC LIMIT 1''')
     last_year, last_entry, last_names = c.fetchone()
-
-    close_db(conn, c)
 
     return last_year, last_entry, last_names
 
